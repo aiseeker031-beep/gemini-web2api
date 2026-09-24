@@ -35,7 +35,7 @@
     <div class="foot">Video generation is asynchronous. This page waits for completion and then displays the result.</div>
   </main>
   <script>
-    const imageModels=[['gemini-3.1-flash-image','Gemini 3.1 Flash Image'],['gemini-3-pro-image-preview','Gemini 3 Pro Image']];
+    const imageModels=[['gemini-3.1-flash-image','Gemini 3.1 Flash Image'],['gemini-3-pro-image','Gemini 3 Pro Image']];
     const videoModels=[['veo-3.1-generate-preview','Veo 3.1']];
     const $=id=>document.getElementById(id);let mode='image',busy=false;
     function setMode(next){mode=next; $('imageTab').classList.toggle('active',mode==='image');$('videoTab').classList.toggle('active',mode==='video');$('ratioWrap').classList.toggle('hidden',mode==='video');$('generate').textContent=mode==='image'?'Generate image':'Generate video';$('model').innerHTML=(mode==='image'?imageModels:videoModels).map(([v,t])=>`<option value="${v}">${t}</option>`).join('');}

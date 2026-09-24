@@ -1,4 +1,5 @@
 const API_ROOT = "https://generativelanguage.googleapis.com/v1beta/openai";
+const IMAGE_MODELS = new Set(["gemini-3.1-flash-image", "gemini-3-pro-image"]);
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -45,6 +46,45 @@ async function proxy(request, env, path, body) {
   }
 }
 
+async function generateImage(request, env, input) {
+  if (!env.GOOGLE_API_KEY || !env.APP_ACCESS_TOKEN) {
+    return errorMessage("Worker is not configured. Add GOOGLE_API_KEY and APP_ACCESS_TOKEN secrets.", 503);
+  }
+  if (request.headers.get("Authorization") !== `Bearer ${env.APP_ACCESS_TOKEN}`) {
+    return errorMessage("Invalid app access token.", 401);
+  }
+  const model = input.model || "gemini-3.1-flash-image";
+  if (!IMAGE_MODELS.has(model)) return errorMessage("Unsupported image model.", 400);
+
+  try {
+    const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": env.GOOGLE_API_KEY },
+      body: JSON.stringify({
+        model,
+        input: input.prompt.trim(),
+        response_format: { type: "image", ...(input.aspect_ratio ? { aspect_ratio: input.aspect_ratio } : {}) },
+      }),
+    });
+    const raw = await upstream.text();
+    if (!upstream.ok) {
+      return new Response(raw, { status: upstream.status, headers: { "Content-Type": upstream.headers.get("Content-Type") || "application/json", "Cache-Control": "no-store" } });
+    }
+
+    const result = JSON.parse(raw);
+    const blocks = [
+      ...(result.output_image ? [result.output_image] : []),
+      ...(Array.isArray(result.output) ? result.output : []),
+      ...(Array.isArray(result.steps) ? result.steps.flatMap(step => step.content || []) : []),
+    ];
+    const image = blocks.find(part => part.type === "image" && part.data) || blocks.find(part => part.data);
+    if (!image) return errorMessage("Gemini completed the request but returned no image data.", 502);
+    return json({ created: Math.floor(Date.now() / 1000), data: [{ b64_json: image.data, mime_type: image.mime_type || image.mimeType || "image/png" }] });
+  } catch (error) {
+    return errorMessage(`Gemini image request failed: ${error.message}`, 502);
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -63,16 +103,7 @@ export default {
       try { input = await request.json(); } catch { return errorMessage("Request body must be valid JSON.", 400); }
       if (typeof input.prompt !== "string" || !input.prompt.trim()) return errorMessage("Enter an image prompt.", 400);
       if (input.prompt.length > 10000) return errorMessage("Prompt must be 10,000 characters or fewer.", 413);
-      const upstreamBody = {
-        model: input.model || "gemini-3.1-flash-image",
-        prompt: input.prompt.trim(),
-        response_format: "b64_json",
-        n: 1,
-      };
-      // The REST API expects OpenAI-compatible extension parameters at the
-      // top level; `extra_body` is an SDK-only option and is rejected here.
-      if (input.aspect_ratio) upstreamBody.aspect_ratio = input.aspect_ratio;
-      return proxy(request, env, "/images/generations", JSON.stringify(upstreamBody));
+      return generateImage(request, env, input);
     }
 
     if (url.pathname === "/api/videos" && request.method === "POST") {
