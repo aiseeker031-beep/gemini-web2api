@@ -12,6 +12,8 @@ DEFAULT_CONFIG = {
     "auth_user": None,
     "xsrf_token": None,
     "default_model": "gemini-3.6-flash",
+    # Separate Gemini Developer API key for native image/video generation.
+    "google_api_key": None,
     "log_requests": True,
     "cookie_file": None,
     "proxy": None,

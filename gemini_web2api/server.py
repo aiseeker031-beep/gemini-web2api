@@ -11,6 +11,7 @@ from .models import MODELS, resolve_model
 from .gemini import generate, generate_stream, log
 from .tools import messages_to_prompt, parse_tool_calls, google_contents_to_prompt, parse_google_function_calls
 from .multimodal import detect_image_mime, fetch_image_bytes, upload_image
+from .media_api import forward_request as forward_media_request
 from . import __version__
 
 
@@ -139,6 +140,8 @@ class GeminiHandler(BaseHTTPRequestHandler):
                      "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]}
                     for n, c in MODELS.items()
                 ]})
+            elif re.fullmatch(r"/v1/videos/[A-Za-z0-9_-]+", self.path):
+                self._forward_media("GET", self.path[len("/v1"):], b"", "application/json")
             elif self.path == "/":
                 self.send_json({"status": "ok", "version": __version__, "models": list(MODELS.keys())})
             else:
@@ -156,6 +159,10 @@ class GeminiHandler(BaseHTTPRequestHandler):
                 self._handle_chat(body)
             elif self.path == "/v1/responses":
                 self._handle_responses(body)
+            elif self.path == "/v1/images/generations":
+                self._forward_media("POST", "/images/generations", body, self.headers.get("Content-Type", "application/json"))
+            elif self.path == "/v1/videos":
+                self._forward_media("POST", "/videos", body, self.headers.get("Content-Type", "application/json"))
             elif ":streamGenerateContent" in self.path:
                 self._handle_google_generate(body, stream=True)
             elif ":generateContent" in self.path:
@@ -172,6 +179,15 @@ class GeminiHandler(BaseHTTPRequestHandler):
                 pass
 
     # ─── /v1/chat/completions ─────────────────────────────────────────────────
+
+    def _forward_media(self, method: str, path: str, body: bytes, content_type: str):
+        status, response_body, response_type = forward_media_request(path, method, body, content_type)
+        self.send_response(status)
+        self.send_header("Content-Type", response_type)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(response_body)))
+        self.end_headers()
+        self.wfile.write(response_body)
 
     def _handle_chat(self, body: bytes):
         req = self._parse_body(body)

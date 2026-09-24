@@ -20,6 +20,8 @@ Convert Google Gemini's web interface into an OpenAI-compatible API. Zero cost, 
 - **Streaming**: SSE streaming support via `httpx`
 - **Codex CLI**: Responses API (`/v1/responses`) for OpenAI Codex integration
 - **Gemini CLI**: Google native API (`/v1beta/models`) for Gemini CLI compatibility
+- **Image Generation**: OpenAI-compatible `/v1/images/generations` proxy (Gemini API key required)
+- **Video Generation**: OpenAI-compatible `/v1/videos` create/status proxy (Gemini API key required)
 
 ## Quick Start
 
@@ -183,6 +185,33 @@ Set `temporary_chats` to `true` to use Gemini Web temporary chats instead of
 persisting conversations to the account history.
 
 When `api_keys` is `[]`, authentication is disabled. When one or more keys are set, `/v1/*` endpoints require `Authorization: Bearer <key>` or `x-api-key: <key>`.
+
+### Image and video generation
+
+Media generation uses Google's Gemini Developer API, separately from the Gemini
+Web cookie used for chat. Set `google_api_key` in `config.json` to a key from
+Google AI Studio. Keep the key on the server and do not expose it in client code.
+The generation endpoints are Google's OpenAI-compatible endpoints proxied by
+this server:
+
+- `POST /v1/images/generations` — accepts the OpenAI image-generation JSON body
+  (for example, `model`, `prompt`, and `response_format`).
+- `POST /v1/videos` — accepts Google's documented multipart video-generation
+  fields, including `model` and `prompt`.
+- `GET /v1/videos/{id}` — returns the asynchronous operation status and result.
+
+Example image request:
+
+```bash
+curl http://localhost:8081/v1/images/generations \\
+  -H "Authorization: Bearer sk-your-key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"gemini-3.1-flash-image","prompt":"A cinematic emerald skincare product still life","response_format":"b64_json","n":1}'
+```
+
+Video creation returns an operation ID. Poll `GET /v1/videos/{id}` until its
+status is `completed` or `failed`. Google API model availability, account
+eligibility, quotas, and billing apply to these requests.
 
 ## Docker
 
