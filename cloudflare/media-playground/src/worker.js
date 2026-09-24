@@ -1,5 +1,5 @@
 const API_ROOT = "https://generativelanguage.googleapis.com/v1beta/openai";
-const IMAGE_MODELS = new Set(["gemini-3.1-flash-image", "gemini-3-pro-image"]);
+const IMAGE_MODELS = new Set(["gemini-3.1-flash-image", "gemini-3.1-flash-lite-image", "gemini-3-pro-image"]);
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
