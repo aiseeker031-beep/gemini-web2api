@@ -69,7 +69,9 @@ export default {
         response_format: "b64_json",
         n: 1,
       };
-      if (input.aspect_ratio) upstreamBody.extra_body = { aspect_ratio: input.aspect_ratio };
+      // The REST API expects OpenAI-compatible extension parameters at the
+      // top level; `extra_body` is an SDK-only option and is rejected here.
+      if (input.aspect_ratio) upstreamBody.aspect_ratio = input.aspect_ratio;
       return proxy(request, env, "/images/generations", JSON.stringify(upstreamBody));
     }
 
